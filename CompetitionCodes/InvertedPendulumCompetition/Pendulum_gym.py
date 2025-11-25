@@ -12,6 +12,7 @@ XML_REL_PATH = os.path.join("Robot", "miniArm_with_pendulum.xml")
 N_JOINTS = 6
 N_FRAME = 10
 MAX_EPISODE_STEPS = 2000
+CTRL_MAX = np.array([10, 25, 15, 20, 10, 5], dtype=np.float32)
 
 
 def get_xml_local_file() -> str:
@@ -41,6 +42,9 @@ class MiniArmPendulumEnv(gym.Env):
         self.max_episode_steps = MAX_EPISODE_STEPS
         self.step_counter = 0
         self.n_joints = N_JOINTS
+        self.ctrl_max = CTRL_MAX
+        self.ctrl_cost_weight = 0.001
+        self.terminate_angle = np.deg2rad(60)  # Termiante angle
 
         self.pen_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjNOBJECT, "pendulum")
 
@@ -57,6 +61,12 @@ class MiniArmPendulumEnv(gym.Env):
         )
 
         self.render_mode = render_mode
+
+        try:
+            mujoco.mj_step(self.model, self.data, nstep=1)
+            self._use_nstep = True
+        except TypeError:
+            self._use_nstep = False
 
     def _reset_simulation(self) -> None:
         mujoco.mj_resetDataKeyframe(self.model, self.da6ta, 0)
@@ -91,3 +101,46 @@ class MiniArmPendulumEnv(gym.Env):
         info = self._get_reset_info()
 
         return ob, info
+
+    ##### step() #####
+
+    def _pendulum_cos_theta(self) -> float:
+        quat = self.data.body(self.pen_id).xquat
+        R_quat = np.empty(9, dtype=np.float32)
+        mujoco._functions.mju_quat2Mat(R_quat, quat)
+        R = R_quat.reshape(3, 3)
+        local_z = R[:, 2]
+        return float(
+            local_z[2]
+        )  # local_Z * world_z = local_Z[0]*0 + local_Z[1]*0 + local_Z[2]*1
+
+    def _apply_action(self, action: np.ndarray) -> np.ndarray:
+        action = np.asarray(action, dtype=np.float32)
+        if action.shape != (self.n_joints,):
+            raise ValueError(
+                f"Expected action shape {self.n_joints}, get {action.shape}"
+            )
+
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+
+        ctrl = action * self.ctrl_max
+        self.data.ctrl[: self.n_joints] = ctrl
+        return ctrl
+
+    def _simulation(self) -> None:
+        if self._use_nstep:
+            mujoco.mj_step(self.model, self.data, nstep=self.n_frame)
+        else:
+            for _ in range(self.n_frame):
+                mujoco.mj_step(self.model, self.data)
+
+    def _compute_reward(self, ctrl: np.ndarray) -> Tuple[float, float, float]:
+        cos_theta = self._pendulum_cos_theta()  # cos_theta = 1 => theta = 0
+        pass
+
+    def _check_terminate(self, cos_theta: float) -> bool:
+        theta = float(np.arccos(np.clip(cos_theta, -1, 1)))
+        return bool(theta > self.terminate_angle)
+
+    def _check_trun(self) -> bool:
+        return bool(self.step_counter >= self.max_episode_steps)
