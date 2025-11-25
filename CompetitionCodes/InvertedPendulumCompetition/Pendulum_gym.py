@@ -147,3 +147,24 @@ class MiniArmPendulumEnv(gym.Env):
 
     def _check_trun(self) -> bool:
         return bool(self.step_counter >= self.max_episode_steps)
+
+    def step(self, action: np.ndarray):
+        self.step_counter += 1
+        ctrl = self._apply_action(action)
+        self._simulation()
+        cos_theta = self._pendulum_cos_theta()
+
+        reward, theta_reward, ctrl_cost = self._compute_reward(ctrl)
+
+        terminated = self._check_terminate(cos_theta)
+        truncated = self._check_trun()
+
+        obs = self._get_obs()
+        info = {
+            "cos_theta": cos_theta,
+            "theta_reward": theta_reward,
+            "ctrl_cost": ctrl_cost,
+            "step": self.step_counter,
+        }
+
+        return obs, reward, terminated, truncated, info
