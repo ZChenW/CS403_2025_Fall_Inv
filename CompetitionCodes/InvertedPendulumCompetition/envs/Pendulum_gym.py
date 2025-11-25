@@ -5,7 +5,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import mujoco
-from numpy._typing import _Float32Codes
+from gymnasium.envs.mujoco.mujoco_rendering import MujocoRenderer
+
 
 XML_REL_PATH = os.path.join("Robot", "miniArm_with_pendulum.xml")
 
@@ -36,6 +37,7 @@ class MiniArmPendulumEnv(gym.Env):
         xml_file = get_xml_local_file()
         self.model = mujoco.MjModel.from_xml_path(xml_file)
         self.data = mujoco.MjData(self.model)
+        self.renderer = MujocoRenderer(self.model, self.data)
 
         self.dt = self.model.opt.timestep
         self.n_frame = N_FRAME
@@ -170,3 +172,17 @@ class MiniArmPendulumEnv(gym.Env):
         }
 
         return obs, reward, terminated, truncated, info
+
+    #### render() ####
+    def render(self):
+        if self.render_mode is None:
+            return None
+        return self.renderer.render(
+            render_mode=self.render_mode,
+            camera_id=None,
+            camera_name=None,
+        )
+
+    def close(self):
+        if hasattr(self, "renderer") and self.renderer is not None:
+            self.renderer.close()
