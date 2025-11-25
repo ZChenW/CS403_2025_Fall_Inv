@@ -17,7 +17,7 @@ CTRL_MAX = np.array([10, 25, 15, 20, 10, 5], dtype=np.float32)
 
 def get_xml_local_file() -> str:
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    xml_path = os.path.join(dir_path, XML_REL_PATH)
+    xml_path = os.path.join(dir_path, "..", XML_REL_PATH)
     if not os.path.exists(xml_path):
         pwd = os.getcwd()
         raise FileNotFoundError(
@@ -46,7 +46,9 @@ class MiniArmPendulumEnv(gym.Env):
         self.ctrl_cost_weight = 0.001
         self.terminate_angle = np.deg2rad(60)  # Termiante angle
 
-        self.pen_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjNOBJECT, "pendulum")
+        self.pen_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "pendulum"
+        )
 
         self.action_space = spaces.Box(
             low=-1, high=1, shape=(self.n_joints,), dtype=np.float32
@@ -57,7 +59,7 @@ class MiniArmPendulumEnv(gym.Env):
         self.obs_dim = n_q + n_v
         high = np.inf * np.ones(self.obs_dim, dtype=np.float32)
         self.observation_space = spaces.Box(
-            low=-high, high=-high, shape=(self.obs_dim), dtype=np.float32
+            low=-high, high=high, shape=(self.obs_dim,), dtype=np.float32
         )
 
         self.render_mode = render_mode
@@ -69,16 +71,16 @@ class MiniArmPendulumEnv(gym.Env):
             self._use_nstep = False
 
     def _reset_simulation(self) -> None:
-        mujoco.mj_resetDataKeyframe(self.model, self.da6ta, 0)
+        mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
 
         noise_pos = 0.01
-        moise_vel = 0.01
+        noise_vel = 0.01
 
         self.data.qpos[: self.n_joints] += self.np_random.uniform(
             low=-noise_pos, high=noise_pos, size=self.n_joints
         )
         self.data.qvel[: self.n_joints] += self.np_random.uniform(
-            low=-moise_vel, high=moise_vel, size=self.n_joints
+            low=-noise_vel, high=noise_vel, size=self.n_joints
         )
         mujoco.mj_forward(self.model, self.data)
 
@@ -86,7 +88,7 @@ class MiniArmPendulumEnv(gym.Env):
         qpos = self.data.qpos.ravel().copy()
         qvel = self.data.qvel.ravel().copy()
         obs = np.concatenate([qpos, qvel], axis=0)
-        return obs
+        return obs.astype(np.float32)
 
     def _get_reset_info(self) -> Dict[str, float]:
         return {}
@@ -105,8 +107,8 @@ class MiniArmPendulumEnv(gym.Env):
     ##### step() #####
 
     def _pendulum_cos_theta(self) -> float:
-        quat = self.data.body(self.pen_id).xquat
-        R_quat = np.empty(9, dtype=np.float32)
+        quat = np.asarray(self.data.body(self.pen_id).xquat, dtype=np.float64)
+        R_quat = np.empty(9, dtype=np.float64)
         mujoco._functions.mju_quat2Mat(R_quat, quat)
         R = R_quat.reshape(3, 3)
         local_z = R[:, 2]
