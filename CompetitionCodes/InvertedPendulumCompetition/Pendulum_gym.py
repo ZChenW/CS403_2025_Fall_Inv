@@ -136,7 +136,10 @@ class MiniArmPendulumEnv(gym.Env):
 
     def _compute_reward(self, ctrl: np.ndarray) -> Tuple[float, float, float]:
         cos_theta = self._pendulum_cos_theta()  # cos_theta = 1 => theta = 0
-        pass
+        theta_reward = (cos_theta + 1.0) / 2.0
+        ctrl_cost = self.ctrl_cost_weight * float(np.sum(ctrl**2))
+        reward = theta_reward - ctrl_cost
+        return reward, theta_reward, ctrl_cost
 
     def _check_terminate(self, cos_theta: float) -> bool:
         theta = float(np.arccos(np.clip(cos_theta, -1, 1)))
