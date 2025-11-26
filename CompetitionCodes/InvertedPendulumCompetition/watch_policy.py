@@ -10,7 +10,7 @@ from train_miniarm_ppo import make_env
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MODEL_PATH = (
-    "runs/MiniArmPendulum-v0__ppo_continuous_action__1__1764102555/"
+    "runs/MiniArmPendulum-v0__ppo_continuous_action__1__1764119700/"
     "ppo_continuous_action.cleanrl_model"
 )
 
