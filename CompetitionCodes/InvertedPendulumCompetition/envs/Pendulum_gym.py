@@ -12,7 +12,7 @@ XML_REL_PATH = os.path.join("Robot", "miniArm_with_pendulum.xml")
 
 N_JOINTS = 6
 N_FRAME = 10
-MAX_EPISODE_STEPS = 2000
+MAX_EPISODE_STEPS = 4000
 CTRL_MAX = np.array([10, 25, 15, 20, 10, 5], dtype=np.float32)
 
 
@@ -72,6 +72,21 @@ class MiniArmPendulumEnv(gym.Env):
         except TypeError:
             self._use_nstep = False
 
+        ### Porject Requiement(Run_PendulumEnv.py) ###
+        self.pushing_trial_gap = 4.0
+        self.pushing_duration = 0.1
+        self.init_next_push_time = 0.5
+        self.init_push_force = 0.0005
+        self.push_force_increment = 0.001
+
+        self.with_push = True
+        self.next_push_time = self.init_next_push_time
+        self.push_force = self.init_push_force
+        self.balance_count = 0
+        self.point = np.zeros(3)
+        self.force = np.zeros(3)
+        self.torque = np.zeros(3)
+
     def _reset_simulation(self) -> None:
         mujoco.mj_resetDataKeyframe(self.model, self.data, 0)
 
@@ -104,6 +119,10 @@ class MiniArmPendulumEnv(gym.Env):
         ob = self._get_obs()
         info = self._get_reset_info()
 
+        self.next_push_time = self.init_next_push_time
+        self.push_force = self.init_push_force
+        self.balance_count = 0
+
         return ob, info
 
     ##### step() #####
@@ -131,12 +150,51 @@ class MiniArmPendulumEnv(gym.Env):
         self.data.ctrl[: self.n_joints] = ctrl
         return ctrl
 
+    def _apply_push_if_needed(self) -> None:
+        if not self.with_push:
+            return
+
+        t = self.data.time
+        T_gap = self.pushing_trial_gap
+        T_push = self.pushing_duration
+
+        if self.next_push_time < t < self.next_push_time + T_push / 2.0:
+            self.force[:] = 0.0
+            self.torque[:] = 0.0
+            self.force[1] = self.push_force
+            mujoco.mj_applyFT(
+                self.model,
+                self.data,
+                self.force,
+                self.torque,
+                self.point,
+                self.pen_id,
+                self.data.qfrc_applied,
+            )
+
+        elif self.next_push_time + T_push / 2.0 < t < self.next_push_time + T_push:
+            self.force[:] = 0.0
+            self.torque[:] = 0.0
+            self.force[1] = -self.push_force
+            mujoco.mj_applyFT(
+                self.model,
+                self.data,
+                self.force,
+                self.torque,
+                self.point,
+                self.pen_id,
+                self.data.qfrc_applied,
+            )
+
+        if self.next_push_time + T_push + 0.5 < t:
+            self.balance_count += 1
+            self.next_push_time += T_gap
+            self.push_force += self.push_force_increment
+
     def _simulation(self) -> None:
-        if self._use_nstep:
-            mujoco.mj_step(self.model, self.data, nstep=self.n_frame)
-        else:
-            for _ in range(self.n_frame):
-                mujoco.mj_step(self.model, self.data)
+        for _ in range(self.n_frame):
+            self._apply_push_if_needed()
+            mujoco.mj_step(self.model, self.data)
 
     def _compute_reward(self, ctrl: np.ndarray) -> Tuple[float, float, float]:
         cos_theta = self._pendulum_cos_theta()  # cos_theta = 1 => theta = 0
