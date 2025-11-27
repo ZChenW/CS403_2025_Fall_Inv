@@ -37,7 +37,7 @@ def main():
         episode_trigger=lambda ep: True,
     )
 
-    for ep in range(2):
+    for ep in range(3):
         obs, info = env.reset()
         done = False
         while not done:

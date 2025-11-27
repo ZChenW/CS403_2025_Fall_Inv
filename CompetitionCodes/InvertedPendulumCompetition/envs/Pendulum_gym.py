@@ -88,6 +88,9 @@ class MiniArmPendulumEnv(gym.Env):
         self.torque = np.zeros(3)
 
         ### Ground Termiante ###
+        self.ground_detech = 0
+        self.max_ground = 15
+        self.ground_penalty = 20
         self.ee_min_hight = 0.05
         self.ee_body_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "EE_Frame"
@@ -220,15 +223,17 @@ class MiniArmPendulumEnv(gym.Env):
 
     def _check_terminate(self, cos_theta: float) -> bool:
         theta = float(np.arccos(np.clip(cos_theta, -1, 1)))
+        j = False
+        if self.ground_detech >= self.max_ground:
+            j = True
         k = bool(theta > self.terminate_angle)
-        j = self._check_ground_contact()
         return k or j
 
     def _check_trun(self) -> bool:
         return bool(self.step_counter >= self.max_episode_steps)
 
     def _check_ground_contact(self) -> bool:
-        if self.ee_grond_id < 0 or self.ee_geom_ids.size < 0:
+        if self.ee_grond_id < 0 or self.ee_geom_ids.size == 0:
             return False
 
         contract_id = self.data.ncon
@@ -245,6 +250,7 @@ class MiniArmPendulumEnv(gym.Env):
 
             if g1 in self.ee_geom_ids and g2 == self.ee_grond_id:
                 return True
+        return False
 
     def step(self, action: np.ndarray):
         self.step_counter += 1
@@ -253,6 +259,14 @@ class MiniArmPendulumEnv(gym.Env):
         cos_theta = self._pendulum_cos_theta()
 
         reward, theta_reward, ctrl_cost = self._compute_reward(ctrl)
+
+        gound_de = self._check_ground_contact()
+
+        if gound_de:
+            self.ground_detech += 1
+            reward -= self.ground_penalty
+        else:
+            self.ground_detech = 0
 
         terminated = self._check_terminate(cos_theta)
         truncated = self._check_trun()
