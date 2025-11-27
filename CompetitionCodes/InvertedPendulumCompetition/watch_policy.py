@@ -10,7 +10,7 @@ from train_miniarm_ppo import make_env
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MODEL_PATH = (
-    "runs/MiniArmPendulum-v0__ppo_continuous_action__1__1764134879/"
+    "runs/MiniArmPendulum-v0__ppo_continuous_action__1__1764216838/"
     "ppo_continuous_action.cleanrl_model"
 )
 
@@ -32,7 +32,7 @@ def main():
     env = MiniArmPendulumEnv(render_mode="rgb_array")
     env = RecordVideo(
         env,
-        video_folder="videos/miniarm_policy/2",
+        video_folder="videos/miniarm_policy/1",
         name_prefix="policy",
         episode_trigger=lambda ep: True,
     )

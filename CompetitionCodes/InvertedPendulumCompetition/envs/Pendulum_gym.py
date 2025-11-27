@@ -90,7 +90,7 @@ class MiniArmPendulumEnv(gym.Env):
         ### Ground Termiante ###
         self.ground_detech = 0
         self.max_ground = 15
-        self.ground_penalty = 20
+        self.ground_penalty = 5
         self.ee_min_hight = 0.05
         self.ee_body_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "EE_Frame"
@@ -218,7 +218,20 @@ class MiniArmPendulumEnv(gym.Env):
         cos_theta = self._pendulum_cos_theta()  # cos_theta = 1 => theta = 0
         theta_reward = (cos_theta + 1.0) / 2.0
         ctrl_cost = self.ctrl_cost_weight * float(np.sum(ctrl**2))
-        reward = theta_reward - ctrl_cost
+
+        ### height reward ###
+        body_ids = [
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "shoulder_roll"),
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "elbow_pitch"),
+            self.ee_body_id,
+        ]
+        z = self.data.xpos[body_ids, 2]
+        ground_margin = 0.05
+        max_bonus = 0.25
+        height_reward = np.clip(z - ground_margin, 0.0, max_bonus).sum()
+
+        reward = theta_reward - ctrl_cost + 0.5 * height_reward
+
         return reward, theta_reward, ctrl_cost
 
     def _check_terminate(self, cos_theta: float) -> bool:
