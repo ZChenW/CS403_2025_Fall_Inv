@@ -12,7 +12,7 @@ XML_REL_PATH = os.path.join("Robot", "miniArm_with_pendulum.xml")
 
 N_JOINTS = 6
 N_FRAME = 10
-MAX_EPISODE_STEPS = 4000
+MAX_EPISODE_STEPS = 10000
 CTRL_MAX = np.array([10, 25, 15, 20, 10, 5], dtype=np.float32)
 
 
