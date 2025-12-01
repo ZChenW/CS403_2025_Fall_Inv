@@ -7,10 +7,7 @@ from watch_policy import load_agent
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-MODEL_PATH = (
-    "runs/MiniArmPendulum-v0__ppo_continuous_action__1__1764291756/"
-    "ppo_continuous_action.cleanrl_model"
-)
+MODEL_PATH = "runs/MiniArmPendulum-v0__ppo_continuous_action__1__1764558724/ppo_continuous_action.cleanrl_model"
 
 
 class YourCtrl:

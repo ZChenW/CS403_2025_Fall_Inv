@@ -1,3 +1,5 @@
+# https://mujoco.readthedocs.io/en/stable/APIreference/index.html
+# https://gymnasium.farama.org/index.html
 import os
 from typing import Optional, Tuple
 from typing_extensions import Dict
@@ -10,12 +12,13 @@ from gymnasium.envs.mujoco.mujoco_rendering import MujocoRenderer
 
 XML_REL_PATH = os.path.join("Robot", "miniArm_with_pendulum.xml")
 
-N_JOINTS = 6
-N_FRAME = 10
-MAX_EPISODE_STEPS = 10000
-CTRL_MAX = np.array([10, 25, 15, 20, 10, 5], dtype=np.float32)
+N_JOINTS = 6  # xml file
+N_FRAME = 10  #
+MAX_EPISODE_STEPS = 10000  # Max step
+CTRL_MAX = np.array([10, 25, 15, 20, 10, 5], dtype=np.float32)  # xml file
 
 
+# Please make sure work on your machine
 def get_xml_local_file() -> str:
     dir_path = os.path.dirname(os.path.realpath(__file__))
     xml_path = os.path.join(dir_path, "..", XML_REL_PATH)
@@ -98,6 +101,17 @@ class MiniArmPendulumEnv(gym.Env):
         self.ee_grond_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_GEOM, "floor"
         )
+        # Have some issue with the code => robot xml
+        # self.body_id = [
+        #     self._get_body_id_or_raise("LowerArm"),
+        #     self._get_body_id_or_raise("UpperArm"),
+        #     self.ee_body_id,
+        # ]
+        # ee_body_geom_ids = []
+        # for i in range(self.model.ngeom):
+        #     if self.model.geom_bodyid[i] in self.body_id:
+        #         ee_body_geom_ids.append(i)
+        # self.ee_body_geom_ids = np.array(ee_body_geom_ids, dtype=np.int32)
 
         ee_geom_ids = []
         for i in range(self.model.ngeom):
@@ -214,15 +228,21 @@ class MiniArmPendulumEnv(gym.Env):
             self._apply_push_if_needed()
             mujoco.mj_step(self.model, self.data)
 
+    def _get_body_id_or_raise(self, name: str) -> int:
+        bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
+        if bid < 0:
+            raise ValueError(f"Body '{name}' not found in MuJoCo model.")
+        return bid
+
     def _compute_reward(self, ctrl: np.ndarray) -> Tuple[float, float, float]:
         cos_theta = self._pendulum_cos_theta()  # cos_theta = 1 => theta = 0
         theta_reward = (cos_theta + 1.0) / 2.0
         ctrl_cost = self.ctrl_cost_weight * float(np.sum(ctrl**2))
 
-        ### height reward ###
+        ### height_reward ###
         body_ids = [
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "shoulder_roll"),
-            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "elbow_pitch"),
+            #     self._get_body_id_or_raise("UpperArm"),
+            #     self._get_body_id_or_raise("LowerArm"),
             self.ee_body_id,
         ]
         z = self.data.xpos[body_ids, 2]
@@ -230,7 +250,7 @@ class MiniArmPendulumEnv(gym.Env):
         max_bonus = 0.25
         height_reward = np.clip(z - ground_margin, 0.0, max_bonus).sum()
 
-        reward = theta_reward - ctrl_cost + 0.5 * height_reward
+        reward = theta_reward - ctrl_cost + 2 * height_reward
 
         return reward, theta_reward, ctrl_cost
 
